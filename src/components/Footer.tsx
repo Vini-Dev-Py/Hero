@@ -8,16 +8,101 @@ import {
     NoMic,
     Phone,
 } from '../Icons/index';
-import { useState } from 'react';
+import { MutableRefObject, useState } from 'react';
 import Container from './Container';
 
-export default function Footer() {
+export default function Footer({ videoMediaStream, peerConnections, localStream, logout }: {videoMediaStream: MediaStream; peerConnections: MutableRefObject<Record<string, RTCPeerConnection>>; localStream: MutableRefObject<HTMLVideoElement> | null; logout: () => void}) {
     const [isMuted, setIsMuted] = useState(false);
     const [isCameraOff, setIsCameraOff] = useState(false);
     const [isScreenSharing, setIsScreenSharing] = useState(false);
     const date = new Date();
     const hours = date.getHours().toString().padStart(2, '0') + ':';
     const minutes = date.getMinutes().toString().padStart(2, '0');
+
+    const toggleMuted = () => {
+        videoMediaStream?.getAudioTracks().forEach((track) => {
+            track.enabled = isMuted;
+        });
+
+        setIsMuted(!isMuted)
+
+        Object.values(peerConnections.current).forEach((peerConnections) => {
+            peerConnections.getSenders().forEach((sender: any) => {
+                if (sender.track?.kind === 'audio') {
+                    if (videoMediaStream?.getAudioTracks().length > 0) {
+                        sender.replaceTrack(
+                            videoMediaStream?.getAudioTracks()
+                            .find((track) => track.kind === 'audio') || null,
+                        );
+                    }
+                };
+            });
+        });
+    };
+
+    const toggleVideo = () => {
+        videoMediaStream?.getVideoTracks().forEach((track) => {
+            track.enabled = isCameraOff;
+        });
+
+        setIsCameraOff(!isCameraOff)
+
+        Object.values(peerConnections.current).forEach((peerConnections) => {
+            peerConnections.getSenders().forEach((sender: any) => {
+                if (sender.track?.kind === 'video') {
+                    sender.replaceTrack(
+                        videoMediaStream?.getVideoTracks()
+                        .find((track) => track.kind === 'video') || null,
+                    );
+                };
+            });
+        });
+    };
+
+    const toggleSreenSharing = async () => {
+
+        if (!isScreenSharing) {
+            const videoShareScreen = await navigator.mediaDevices.getDisplayMedia({
+                video: true,
+                audio: true
+            });
+    
+            if (localStream?.current) {
+                localStream.current.srcObject = videoShareScreen;
+            }
+    
+            Object.values(peerConnections.current).forEach((peerConnections) => {
+                peerConnections.getSenders().forEach((sender: any) => {
+                    if (sender.track?.kind === 'video') {
+                        sender.replaceTrack(
+                            videoShareScreen?.getVideoTracks()[0]
+                        );
+                    };
+                });
+            });
+    
+            setIsScreenSharing(!isScreenSharing);
+
+            return
+        }
+
+        if (localStream?.current) {
+            localStream.current.srcObject = videoMediaStream;
+        }
+
+        Object.values(peerConnections.current).forEach((peerConnections) => {
+            peerConnections.getSenders().forEach((sender: any) => {
+                if (sender.track?.kind === 'video') {
+                    sender.replaceTrack(
+                        videoMediaStream?.getVideoTracks()[0]
+                    );
+                };
+            })
+        })
+
+        setIsScreenSharing(!isScreenSharing)
+    };
+
     return (
         <div className="fixed items-center bottom-0 bg-black py-6 w-full">
             <Container>
@@ -32,39 +117,39 @@ export default function Footer() {
                         {isMuted ? (
                             <NoMic
                                 className="h-12 w-16 text-white p-2 cursor-pointer bg-red-500  rounded-md"
-                                onClick={() => setIsMuted(!isMuted)}
+                                onClick={() => toggleMuted()}
                             />
                         ) : (
                             <Mic
                                 className="h-12 w-16 text-white p-2 cursor-pointer bg-gray-950  rounded-md"
-                                onClick={() => setIsMuted(!isMuted)}
+                                onClick={() => toggleMuted()}
                             />
                         )}
                         {isCameraOff ? (
                             <NoCamera
                                 className="h-12 w-16 text-white p-2 cursor-pointer bg-red-500 rounded-md"
-                                onClick={() => setIsCameraOff(!isCameraOff)}
+                                onClick={() => toggleVideo()}
                             />
                         ) : (
                             <Camera
                                 className="h-12 w-16 text-white p-2 cursor-pointer bg-gray-950 rounded-md"
-                                onClick={() => setIsCameraOff(!isCameraOff)}
+                                onClick={() => toggleVideo()}
                             />
                         )}
 
                         {isScreenSharing ? (
                             <NoComputer
                                 className="h-12 w-16 text-white p-2 cursor-pointer bg-red-500 rounded-md"
-                                onClick={() => setIsScreenSharing(!isScreenSharing)}
+                                onClick={() => toggleSreenSharing()}
                             />
                         ) : (
                             <Computer
                                 className="h-12 w-16 text-white p-2 cursor-pointer bg-gray-950 rounded-md"
-                                onClick={() => setIsScreenSharing(!isScreenSharing)}
+                                onClick={() => toggleSreenSharing()}
                             />
                         )}
 
-                        <Phone className="h-12 w-16 text-white hover:bg-red-500 p-2 cursor-pointer bg-primary rounded-md" />
+                        <Phone onClick={logout} className="h-12 w-16 text-white hover:bg-red-500 p-2 cursor-pointer bg-primary rounded-md" />
                     </div>
                 </div>
             </Container>
